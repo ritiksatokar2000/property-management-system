@@ -22,10 +22,6 @@ const adminSchema = new mongoose.Schema(
       type: String,
       require: true,
     },
-    role: {
-      type: String,
-      require: true,
-    },
   },
   {
     timestamps: true,
@@ -47,7 +43,7 @@ adminSchema.methods.generateAccessToken = function (){
     _id:this.id,
     email:this.email,
     name:this.username,
-    role:this.role
+    role:"admin"
   },
   process.env.ACCESS_TOKEN_SECRET,
   {

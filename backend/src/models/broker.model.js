@@ -52,6 +52,7 @@ brokerSchema.methods.generateAccessToken = function () {
       _id: this.id,
       email: this.email,
       name: this.username,
+      role:"broker"
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
