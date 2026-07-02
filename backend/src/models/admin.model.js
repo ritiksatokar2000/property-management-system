@@ -22,6 +22,9 @@ const adminSchema = new mongoose.Schema(
       type: String,
       require: true,
     },
+    refreshToken:{
+      type:String
+    }
   },
   {
     timestamps: true,
@@ -42,7 +45,7 @@ adminSchema.methods.generateAccessToken = function (){
   return jwt.sign({
     _id:this.id,
     email:this.email,
-    name:this.username,
+    name:this.name,
     role:"admin"
   },
   process.env.ACCESS_TOKEN_SECRET,
