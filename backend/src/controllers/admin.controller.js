@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { Admin } from "../models/admin.model.js";
 import { generateAccessAndRefreshToken } from "../utils/generateToken.js";
 import { Broker } from "../models/broker.model.js";
+import { Builder } from "../models/builder.model.js";
 
 const registerAdmin = asyncHandler(async (req, res) => {
   const { name, email, phone, password } = req.body;
@@ -115,7 +116,8 @@ const logoutAdmin = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
 
   if (!incomingRefreshToken) {
     throw new ApiError(400, "Unauthorized request");
@@ -158,34 +160,35 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       );
   } catch (error) {
     console.log(error);
-    throw new ApiError(401,"Invalid or expired refresh token");
+    throw new ApiError(401, "Invalid or expired refresh token");
   }
 });
 
-const getCurrentAdmin = asyncHandler(async(req,res) => {
-})
+const getCurrentAdmin = asyncHandler(async (req, res) => {});
 
-const updateAdminProfile = asyncHandler(async(req,res) =>{
+const updateAdminProfile = asyncHandler(async (req, res) => {});
 
-})
-
-const changeCurrentPassword = asyncHandler(async(req,res)=>{})
+const changeCurrentPassword = asyncHandler(async (req, res) => {});
 
 //Broker Managemnet
 
-const registerBroker = asyncHandler(async(req,res)=>{
-  const {name , email, phone, password} = req.body;
+const registerBroker = asyncHandler(async (req, res) => {
+  const { name, email, phone, password } = req.body;
 
-  if([name,email,phone,password].some((field)=> !field || field.toString().trim() ==="")){
-    throw new ApiError(400,"All feild are required")
+  if (
+    [name, email, phone, password].some(
+      (field) => !field || field.toString().trim() === "",
+    )
+  ) {
+    throw new ApiError(400, "All feild are required");
   }
 
   const existedBroker = await Broker.findOne({
-    $or:[{email}, {phone}]
-  })
+    $or: [{ email }, { phone }],
+  });
 
-  if(existedBroker){
-    throw new ApiError(409,"Broker already exist")
+  if (existedBroker) {
+    throw new ApiError(409, "Broker already exist");
   }
 
   const broker = await Broker.create({
@@ -193,153 +196,269 @@ const registerBroker = asyncHandler(async(req,res)=>{
     email,
     phone,
     password,
-    isActive:true,
-    createdBy : req.user?._id,
-  })
+    isActive: true,
+    createdBy: req.user?._id,
+  });
 
   const createdBroker = await Broker.findById(broker._id).select(
-    "-password -refreshToken"
+    "-password -refreshToken",
   );
 
-  if(!createdBroker){
-    throw new ApiError(500,"Faile to creat broker")
+  if (!createdBroker) {
+    throw new ApiError(500, "Faile to creat broker");
   }
 
-  return res.status(201)
-  .json(new ApiResponse(201,createdBroker,"Broker created Successfully"))
+  return res
+    .status(201)
+    .json(new ApiResponse(201, createdBroker, "Broker created Successfully"));
+});
 
-})
+const getAllBroker = asyncHandler(async (req, res) => {
+  const allBroker = await Broker.find({}).select("-password -refreshToken");
 
-const getAllBroker = asyncHandler(async(req,res)=> {
-    const allBroker = await Broker.find({}).select('-password -refreshToken');
+  if (allBroker.length === 0) {
+    throw new ApiError(404, "No broker found");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, allBroker, "All broker fetch"));
+});
 
-    if(allBroker.length === 0){
-      throw new ApiError(404,"No broker found")
-    }
-    return res.status(200)
-    .json(new ApiResponse(200,allBroker,"All broker fetch"))
+const getBrokerById = asyncHandler(async (req, res) => {
+  const { brokerId } = req.params;
 
-})
-
-const getBrokerById = asyncHandler(async(req,res)=>{
-
-  const {brokerId} = req.params;
-
-  if(!brokerId){
-    throw new ApiError(400,"not a valid id")
+  if (!brokerId) {
+    throw new ApiError(400, "not a valid id");
   }
 
-  if(!mongoose.Types.ObjectId.isValid(brokerId)){
-    throw new ApiError(400,"not a valid id")
+  if (!mongoose.Types.ObjectId.isValid(brokerId)) {
+    throw new ApiError(400, "not a valid id");
   }
 
-  const broker = await Broker.findById(brokerId).select("-password -refreshToken")
+  const broker = await Broker.findById(brokerId).select(
+    "-password -refreshToken",
+  );
 
-  if(!broker){
-    throw new ApiError(400,"Id is invaalide")
+  if (!broker) {
+    throw new ApiError(400, "Id is invaalide");
   }
 
-  return res.status(200).json(new ApiResponse(200,broker,"Broker found"))
-})
+  return res.status(200).json(new ApiResponse(200, broker, "Broker found"));
+});
 
-const updateBroker = asyncHandler(async(req,res)=>{
-   const {name, phone,} = req.body;
-   const {brokerId} = req.params;
+const updateBroker = asyncHandler(async (req, res) => {
+  const { name, phone } = req.body;
+  const { brokerId } = req.params;
 
-   if(!brokerId){
-    throw new ApiError(400,"broker id is missing")
-   }
-
-   if([name,phone].some((field)=> !field|| field.toString().trim()==="")){
-    throw new ApiError(400,"all Fields are required")
-   }
-
-   const broker = await Broker.findByIdAndUpdate(brokerId,{
-    $set:{name,phone}
-   },{new:true}).select("-password -refreshToken")
-
-   if(!broker){
-    throw new ApiError(500,"Faild to update")
-   }
-   return res.status(200).json(new ApiResponse(200,broker,"broker details are updated"))
-})
-
-const updateBrokerStatus = asyncHandler(async(req,res)=>{
-  const {brokerId} = req.params;
-  if(!brokerId){
-    throw new ApiError(400,"id not found")
-  }
-  if(!mongoose.Types.ObjectId.isValid(brokerId)){
-    throw new ApiError(400,"Invalid id")
+  if (!brokerId) {
+    throw new ApiError(400, "broker id is missing");
   }
 
-  const broker = await Broker.findById(brokerId)
- 
-  if(!broker){
-    throw new ApiError(404,"invalid id")
+  if ([name, phone].some((field) => !field || field.toString().trim() === "")) {
+    throw new ApiError(400, "all Fields are required");
   }
 
-  const status = broker.isActive = !broker.isActive
+  const broker = await Broker.findByIdAndUpdate(
+    brokerId,
+    {
+      $set: { name, phone },
+    },
+    { new: true },
+  ).select("-password -refreshToken");
 
-  await broker.save({validateBeforeSave:false})
+  if (!broker) {
+    throw new ApiError(500, "Faild to update");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, broker, "broker details are updated"));
+});
 
-  return res.status(200).json(new ApiResponse(200,broker,"Status updated"))
-})
-
-const deleteBroker = asyncHandler(async(req,res)=>{
-  const {brokerId}= req.params;
-
-  if(!brokerId){
-    throw new ApiError(404,"Is not found")
+const updateBrokerStatus = asyncHandler(async (req, res) => {
+  const { brokerId } = req.params;
+  if (!brokerId) {
+    throw new ApiError(400, "id not found");
+  }
+  if (!mongoose.Types.ObjectId.isValid(brokerId)) {
+    throw new ApiError(400, "Invalid id");
   }
 
-  if(!mongoose.Types.ObjectId.isValid(brokerId)){
-    throw new ApiError(400,"Invalid id")
+  const broker = await Broker.findById(brokerId);
+
+  if (!broker) {
+    throw new ApiError(404, "invalid id");
+  }
+
+  const status = (broker.isActive = !broker.isActive);
+
+  await broker.save({ validateBeforeSave: false });
+
+  return res.status(200).json(new ApiResponse(200, broker, "Status updated"));
+});
+
+const deleteBroker = asyncHandler(async (req, res) => {
+  const { brokerId } = req.params;
+
+  if (!brokerId) {
+    throw new ApiError(404, "Is not found");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(brokerId)) {
+    throw new ApiError(400, "Invalid id");
   }
 
   const broker = await Broker.findByIdAndDelete(brokerId);
 
-  if(!broker){
-    throw new ApiError(404,"Broker not found")
+  if (!broker) {
+    throw new ApiError(404, "Broker not found");
   }
 
-  return  res.status(200).json(new ApiResponse(200,broker,"broker deleted"))
-})
+  return res.status(200).json(new ApiResponse(200, broker, "broker deleted"));
+});
 
 // Builder Managemnet
 
-const createBuilder = asyncHandler(async(req,res)=>{})
+const createBuilder = asyncHandler(async (req, res) => {
+  const { name, contactEmail, phone } = req.body;
 
-const getAllBuilders = asyncHandler(async(req,res)=>{})
+  if (
+    [name, contactEmail, phone].some(
+      (field) => !field || field.toString().trim() === "",
+    )
+  ) {
+    throw new ApiError(400, "All fields are required");
+  }
 
-const getBuilderById = asyncHandler(async(req,res)=>{})
+  const builderExist = await Builder.findOne({
+    $or: [{ contactEmail }, { phone }],
+  });
 
-const updateBuilder = asyncHandler(async(req,res)=>{})
+  if (builderExist) {
+    throw new ApiError(400, "BUilder already exists");
+  }
 
-const deleteBuilder = asyncHandler(async(req,res)=>{})
+  const builder = await Builder.create({
+    name,
+    contactEmail,
+    phone,
+    createdBy: req.user._id,
+  });
+
+  if (!builder) {
+    throw new ApiError(500, "Failed to create Builder");
+  }
+
+  return res
+    .status(201)
+    .json(new ApiResponse(201, builder, "Builder created successfully"));
+});
+
+const getAllBuilders = asyncHandler(async (req, res) => {
+  const allBuilder = await Builder.find();
+
+  if (allBUilder.length === 0) {
+    throw new ApiError(404, "not builder found");
+  }
+
+  return res.status(200).json(200, allBuilder, "All builder fetch");
+});
+
+const getBuilderById = asyncHandler(async (req, res) => {
+  const { builderId } = req.params;
+
+  if (!builderId) {
+    throw new ApiError(400, "Builder is not given");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(builderId)) {
+    throw new ApiError(400, "not a valid builder id");
+  }
+
+  const builder = await Builder.findById(builderId);
+
+  if (!builder) {
+    throw new ApiError(400, "builder not found");
+  }
+
+  return res.status(200).json(200, builder, "Builder is found");
+});
+
+const updateBuilder = asyncHandler(async (req, res) => {
+  const { name, contactEmail, phone } = req.body;
+  const { builderId } = req.params;
+
+  if (
+    [name, contactEmail, phone].some(
+      (feild) => !feild || feild.toString().trim() === "",
+    )
+  ) {
+    throw new ApiError(400, "Alfeild are required");
+  }
+
+  const existedEmail = await Builder.findOne({
+    contactEmail,
+    _id: { $ne: builderId },
+  });
+
+  if (existedEmail) {
+    throw new ApiError(400, "email already exite");
+  }
+
+  const builder = await Builder.findByIdAndUpdate(
+    builderId,
+    { name, contactEmail, phone },
+    { new: true },
+  );
+
+  if (!builder) {
+    throw new ApiError(400, "failed to update builder");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, builder, "builder updated successfully"));
+});
+
+const deleteBuilder = asyncHandler(async (req, res) => {
+  const { builderId } = req.params;
+
+  if (!builderId) {
+    throw new ApiError(400, "id not found");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(builderId)) {
+    throw new ApiError(400, "invalid id");
+  }
+
+  const deletedBuilder = await Builder.findByIdAndDelete(builderId);
+
+  if (!deletedBuilder) {
+    throw new ApiError(404, "Builder not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, deletedBuilder, "deleted Builder"));
+});
 
 //Project Management
 
-const createProject = asyncHandler(async(req,res)=>{})
+const createProject = asyncHandler(async (req, res) => {});
 
-const getAllProjects = asyncHandler(async(req,res)=>{})
+const getAllProjects = asyncHandler(async (req, res) => {});
 
-const getProjectById = asyncHandler(async(req,res)=>{})
+const getProjectById = asyncHandler(async (req, res) => {});
 
-const updateProject = asyncHandler(async(req,res)=>{})
+const updateProject = asyncHandler(async (req, res) => {});
 
-const deleteProject = asyncHandler(async(req,res)=>{})
+const deleteProject = asyncHandler(async (req, res) => {});
 
-// Dashboard 
+// Dashboard
 
-const getDashboardSummary = asyncHandler(async(req,res)=>{})
+const getDashboardSummary = asyncHandler(async (req, res) => {});
 
-const getRecentLeads = asyncHandler(async(req,res)=>{})
+const getRecentLeads = asyncHandler(async (req, res) => {});
 
-const getRecentSales = asyncHandler(async(req,res)=>{})
-
-
-
-
+const getRecentSales = asyncHandler(async (req, res) => {});
 
 export { registerAdmin, loginAdmin };
