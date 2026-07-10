@@ -7,6 +7,7 @@ import { Admin } from "../models/admin.model.js";
 import { generateAccessAndRefreshToken } from "../utils/generateToken.js";
 import { Broker } from "../models/broker.model.js";
 import { Builder } from "../models/builder.model.js";
+import { Project } from "../models/project.model.js";
 
 const registerAdmin = asyncHandler(async (req, res) => {
   const { name, email, phone, password } = req.body;
@@ -443,15 +444,150 @@ const deleteBuilder = asyncHandler(async (req, res) => {
 
 //Project Management
 
-const createProject = asyncHandler(async (req, res) => {});
+const createProject = asyncHandler(async (req, res) => {
+  const { name, location, description, launchDate, builderId } = req.body;
 
-const getAllProjects = asyncHandler(async (req, res) => {});
+  if (!mongoose.Types.ObjectId.isValid(builderId)) {
+    throw new ApiError(400, "invalid builder id");
+  }
 
-const getProjectById = asyncHandler(async (req, res) => {});
+  if (
+    [name, location, description, launchDate].some(
+      (feild) => !feild || feild.toString().trim() === "",
+    )
+  ) {
+    throw new ApiError(400, "all feild are required");
+  }
 
-const updateProject = asyncHandler(async (req, res) => {});
+  const projectExist = await Project.findOne({
+    $or: [{ name }],
+  });
 
-const deleteProject = asyncHandler(async (req, res) => {});
+  if (projectExist) {
+    throw new ApiError(409, "Project Already exists");
+  }
+
+  const builder = await Builder.findById(builderId);
+
+  if (!builder) {
+    throw new ApiError(404, "Builder not found");
+  }
+
+  const project = await Project.create({
+    name,
+    location,
+    description,
+    launchDate,
+    builder: builder._id,
+    createdBy: req.user._id,
+  });
+
+  if (!project) {
+    throw new ApiError(500, "failed to create project");
+  }
+
+  return res
+    .status(201)
+    .json(new ApiResponse(200, project, "project created successfully"));
+});
+
+const getAllProjects = asyncHandler(async (req, res) => {
+  const allProject = await Project.find().populate("builder","name contactEmail phone");
+
+  if (allProject.length === 0) {
+    throw new ApiError(400, "no Record");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, allProject, "all project fetch"));
+});
+
+const getProjectById = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new ApiError(400, "Invalid Project id");
+  }
+
+  const project = await Project.findById(projectId).populate("builder","name contactEmail phone createdBy");
+
+  if (!project) {
+    throw new ApiError(404, "unable to fetch project data");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, project, "Data fetch successfully"));
+});
+
+const updateProject = asyncHandler(async (req, res) => {
+  const { name, location, description, launchDate, builderId } = req.body;
+  const { projectId } = req.params;
+
+  if(!mongoose.Types.ObjectId.isValid(projectId)){
+    throw new ApiError(400,"Invalid project id")
+  }
+
+  if(!mongoose.Types.ObjectId.isValid(builderId)){
+    throw new ApiError(400,"Invalid builder id")
+  }
+
+  if (
+    [name, location, description, launchDate, builderId].some(
+      (field) => !field || field.toString().trim() === "",
+    )
+  ) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  const project = await Project.findById(projectId)
+
+  if(!project){
+    throw new ApiError(404,"Project not found")
+  }
+
+  const existingProject = await Project.findOne({ name, _id: { $ne: projectId } });
+
+  if(existingProject){
+    throw new ApiError(400,"project name already exists")
+  }
+
+  const builder = await Builder.findById(builderId)
+
+  if(!builder){
+    throw new ApiError(404,"Builder not found")
+  }
+
+  const updatedProject = await Project.findByIdAndUpdate(
+    projectId,
+    { name, location, description, launchDate, builder:builderId },
+    { new: true, runValidators:true },
+  ).populate("builder","name contactEmail phone");
+
+  if(!updatedProject){
+    throw new ApiError(500,"Failed to update Project")
+  }
+
+  return res.status(200).json(new ApiResponse(200,updatedProject,"Project updated successfully"))
+
+});
+
+const deleteProject = asyncHandler(async (req, res) => {
+  const {projectId} = req.params;
+
+  if(!mongoose.Types.ObjectId.isValid(projectId)){
+    throw new ApiError(400,"invalid project id")
+  }
+
+  const deletedProject = await Project.findByIdAndDelete(projectId)
+   
+  if(!deletedProject){
+    throw new ApiError(404,"Failed to delete Project")
+  }
+
+  return res.status(200).json(new ApiResponse(200,deletedProject,"Project deleted successfully"))
+});
 
 // Dashboard
 
