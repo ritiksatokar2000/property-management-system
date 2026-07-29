@@ -23,7 +23,8 @@ const propertySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    required: true,
+    enum: ["available", "in_discussion", "reserved", "sold"],
+    default: "available",
   },
 });
 
