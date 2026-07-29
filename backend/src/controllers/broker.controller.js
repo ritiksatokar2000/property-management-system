@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { generateAccessAndRefreshToken } from "../utils/generateToken";
+import { Lead } from "../models/lead.model";
 
 const loginBroker = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -161,7 +162,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Password changed successfully"));
 });
 
-const updaterokerProfile = asyncHandler(async (req, res) => {
+const updateBrokerProfile = asyncHandler(async (req, res) => {
   const { name, email, phone } = req.body;
 
   if (
@@ -173,27 +174,127 @@ const updaterokerProfile = asyncHandler(async (req, res) => {
   }
 
   const existingBroker = await Broker.findOne({
-    $or: [{email},{phone}],
-    _id:{$ne:req.user._id}
-  })
+    $or: [{ email }, { phone }],
+    _id: { $ne: req.user._id },
+  });
 
-  if(existingBroker){
-    throw new ApiError(409,"Email or phone aready exists")
+  if (existingBroker) {
+    throw new ApiError(409, "Email or phone aready exists");
   }
 
   const broker = await Broker.findByIdAndUpdate(
     req.user._id,
     {
-      name, email, phone
+      name,
+      email,
+      phone,
     },
-    { new: true,
-      runValidators:true
-     },
+    { new: true, runValidators: true },
   ).select("-password -refreshToken");
 
-  if(!broker){
-    throw new ApiError(504,"Something Went wrong")
+  if (!broker) {
+    throw new ApiError(504, "Something Went wrong");
   }
 
-  res.status(200).json(new ApiResponse(200,broker,"Broker updated"));
+  res.status(200).json(new ApiResponse(200, broker, "Broker updated"));
+});
+
+//Business Logic
+
+const getAssignedLeads = asyncHandler(async (req, res) => {
+  const leads = await Lead.find({ brokerId: req.user._id }).populate({
+    path: "projectId",
+    select: "name builder",
+    populate: {
+      path: "builder",
+      select: "name",
+    },
+  });
+
+  if (leads.length === 0) {
+    throw new ApiError(404, "No Leads found");
+  }
+
+  res.status(200).json(new ApiResponse(200, leads, "All lead are fetch"));
+});
+
+const getAssignedLeadById = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    throw new ApiError(400, "Invalid Lead id");
+  }
+
+  const lead = await Lead.findOne({
+    _id: leadId,
+    brokerId: req.user._id,
+  }).populate({
+    path: "projectId",
+    select: "name location status launchDate builder",
+    populate: {
+      path: "builder",
+      select: "name contactEmail phone",
+    },
+  });
+
+  if (!lead) {
+    throw new ApiError(404, "Lead not found");
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, lead, "lead information fetch succesfully"));
+});
+
+const updateAssignedLeadStatus = asyncHandler(async (req, res) => {
+  const { leadId } = req.params;
+  const { status } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    throw new ApiError(400, "Invalid Id");
+  }
+  if (!status) {
+    throw new ApiError(400, "Status is not valid");
+  }
+
+  const lead = await Lead.findOneAndUpdate(
+    { _id: leadId, brokerId: req.user._id },
+    { status },
+    { new: true, runValidators: true },
+  );
+
+  if (!lead) {
+    throw new ApiError(404, "Something Went wrong");
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, lead, "Status updated succcesfully"));
+});
+
+const updateAssignedLeadNotes = asyncHandler(async (req, res) => {
+  const { notes } = req.body;
+  const { leadId } = req.params;
+
+  if (!notes) {
+    throw new ApiError(400, "Notes is required");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    throw new ApiError(400, "Id is not valid");
+  }
+
+  const lead = await Lead.findOneAndUpdate(
+    { _id: leadId, brokerId: req.user._id },
+    { notes },
+    { new: true },
+  );
+
+  if (!lead) {
+    throw new ApiError(404, "Lead not found");
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, lead, "Note is updated succesfully"));
 });
